@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Office Days Tracker</title>
+  <style>
+    :root {
+      --bg: #fff;
+      --text: #222;
+      --muted: #ececec;
+      --primary: #497be0;
+      --remote: #88b398;
+      --untracked: #cacaca;
+      --highlight: #ffefa0;
+      --shadow: 0 2px 8px rgba(40,60,110,0.07);
+      --radius: 13px;
+    }
+    body {
+      background: var(--muted);
+      color: var(--text);
+      font-family: 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+      display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0;
+      font-size: 13px;
+    }
+    .tracker-card {
+      background: var(--bg);
+      margin: 44px 0 0;
+      padding: 18px 18px 8px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      width: 320px;
+      max-width: 95vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .month-nav {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+      width: 100%; justify-content: center;
+    }
+    .nav-btn {
+      background: none; border: none; color: var(--text); font-size: 17px; cursor: pointer;
+      min-width: 23px; height: 23px; border-radius: 18px;
+      transition: background 0.15s;
+    }
+    .nav-btn:hover { background: var(--muted); }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 32px);
+      gap: 2.5px;
+    }
+    .cal-day, .cal-head {
+      width: 32px; height: 32px;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 13px;
+      border-radius: 7px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.08s, color 0.08s;
+    }
+    .cal-head {
+      color: #666; font-weight: 500; background: none;
+      cursor: default;
+      pointer-events: none;
+    }
+    .cal-day { background: none; color: var(--text);}
+    .cal-day.office { background: var(--primary); color: #fff; }
+    .cal-day.remote { background: var(--remote); color: #fff; }
+    .cal-day.untracked { background: var(--untracked); color: #fff; }
+    .cal-day.today {
+      outline: 2px solid var(--highlight); z-index: 1;
+    }
+    .cal-day:active {
+      filter: brightness(95%);
+    }
+    .legend {
+      display: flex; align-items: center; gap: 14px;
+      margin: 11px 0 2px;
+      font-size: 12px;
+    }
+    .legend-dot {
+      width: 13px; height: 13px; border-radius: 50%;
+      margin-right: 4px; display: inline-block;
+      vertical-align: middle; border: 1px solid #ccc;
+    }
+    .legend .l-office { background: var(--primary);}
+    .legend .l-remote { background: var(--remote);}
+    .legend .l-untr { background: var(--untracked);}
+    .stats {
+      margin: 0 0 2px; padding: 8px 0 0;
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid #f1f1f1;
+      font-size: 12px; color: #575757;
+    }
+    @media (max-width: 390px) {
+      .calendar { grid-template-columns: repeat(7, 26px);}
+      .cal-day, .cal-head { width: 26px; height: 26px; font-size: 11px;}
+      .tracker-card { padding: 10px 2vw;}
+    }
+  </style>
+</head>
+<body>
+  <div class="tracker-card">
+    <div class="month-nav">
+      <button class="nav-btn" id="prevMonth" title="Previous Month">&lt;</button>
+      <span id="monthLabel" style="min-width:100px;text-align:center;letter-spacing:0.3px;"></span>
+      <button class="nav-btn" id="nextMonth" title="Next Month">&gt;</button>
+    </div>
+    <div class="calendar" id="calendar"></div>
+    <div class="legend">
+      <span><span class="legend-dot l-office"></span>office</span>
+      <span><span class="legend-dot l-remote"></span>remote</span>
+      <span><span class="legend-dot l-untr"></span>unset</span>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+  <script>
+    const states = ['untracked', 'office', 'remote'];
+    let today = new Date(), year = today.getFullYear(), month = today.getMonth();
+    let data = JSON.parse(localStorage.getItem('attendance_v1')) || {};
+
+    function getMonthDays(y,m){return new Date(y,m+1,0).getDate();}
+    function save(){localStorage.setItem('attendance_v1',JSON.stringify(data));}
+    function pad(n){return n<10?'0'+n:n;}
+    function build(){ // Render header and calendar grid
+      const mDate = new Date(year,month,1);
+      document.getElementById('monthLabel').textContent =
+        mDate.toLocaleString('default',{month:'long',year:'numeric'}).replace(/ /,'\xa0');
+      let firstWday = mDate.getDay(), days = getMonthDays(year, month), cal='';
+      let wdays = ['S','M','T','W','T','F','S'];
+      for(let wd of wdays) cal+=`<div class="cal-head">${wd}</div>`;
+      let offset = (firstWday+7)%7;
+      for(let i=0;i<offset;i++) cal+='<div></div>';
+      let ym = `${year}-${pad(month+1)}`;
+      data[ym] = data[ym] || {};
+      for(let d=1;d<=days;d++){
+        let state = data[ym][d] || 'untracked';
+        let cls = `cal-day ${state}`;
+        if(year==today.getFullYear()&&month==today.getMonth()&&d==today.getDate()) cls+=' today';
+        cal+=`<div class="${cls}" data-day="${d}">${d}</div>`;
+      }
+      document.getElementById('calendar').innerHTML = cal;
+      updateStats();
+    }
+    function updateStats(){
+      let ym = `${year}-${pad(month+1)}`, counts={office:0,remote:0,untracked:0}, days=getMonthDays(year, month);
+      let monthData = data[ym]||{};
+      for(let d=1;d<=days;d++){
+        let st=monthData[d]||'untracked';
+        counts[st]++;
+      }
+      let row = `<span>office <b style="color:var(--primary);">${counts.office}</b></span>
+        <span>remote <b style="color:var(--remote);">${counts.remote}</b></span>
+        <span>unset <b style="color:var(--untracked);">${counts.untracked}</b></span>`;
+      document.getElementById('stats').innerHTML = row;
+    }
+    document.getElementById('calendar').addEventListener('click', function(e){
+      if(e.target.classList.contains('cal-day')){
+        let d=parseInt(e.target.dataset.day),ym=`${year}-${pad(month+1)}`;
+        let cur=data[ym][d]||'untracked';
+        let next=states[(states.indexOf(cur)+1)%states.length];
+        data[ym][d]=next;
+        save(); build();
+      }
+    });
+    document.getElementById('prevMonth').onclick=()=>{month--; if(month<0){month=11;year--;} build();}
+    document.getElementById('nextMonth').onclick=()=>{month++; if(month>11){month=0;year++;} build();}
+    build();
+  </script>
+</body>
+</html>
